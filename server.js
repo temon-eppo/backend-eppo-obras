@@ -103,15 +103,22 @@ app.get('/api/employees', async (req, res) => {
   }
 });
 
-// GET: funcionário por nome
-app.get('/api/employees/name/:name', async (req, res) => {
+// GET: funcionário por obra
+app.get('/api/employees', async (req, res) => {
   try {
-    const employees = await getEmployeeByName(req.params.name);
-    if (!employees || employees.length === 0) return res.status(404).send('Funcionário não encontrado');
+    const { obra } = req.query;
+
+    if (obra) {
+      const employees = await getEmployeesByObra(obra);
+      return res.json(employees);
+    }
+
+    const employees = await getAllEmployees();
     res.json(employees);
+
   } catch (err) {
     console.error(err);
-    res.status(500).send('Erro ao buscar funcionário');
+    res.status(500).send('Erro ao buscar funcionários');
   }
 });
 
@@ -152,3 +159,4 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
