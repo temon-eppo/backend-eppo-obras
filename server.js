@@ -14,7 +14,7 @@ const app = express();
 const port = process.env.PORT || 4000;
 
 // Configura CORS e aumenta limite de JSON
-app.use(cors({ origin: ["http://localhost:5173", "https://eppo-obras.vercel.app"] }));
+app.use(cors({ origin: ["http://localhost:5173", "https://eppo-obras.vercel.app", "https://eppo-obras-aef61.web.app"] }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -159,5 +159,6 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
 
 
