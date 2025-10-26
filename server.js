@@ -1,7 +1,15 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { pool, getAllTools, getToolBySearch, getUniqueDescriptions, getAllEmployees, getEmployeesByObra, getEmployeeByName } = require('./db.js');
+const {
+  pool,
+  getAllTools,
+  getToolBySearch,
+  getUniqueDescriptions,
+  getAllEmployees,
+  getEmployeesByObra,
+  getEmployeeByName
+} = require('./db.js');
 const EventEmitter = require('events');
 
 const app = express();
@@ -18,9 +26,11 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// ==================== SSE: notificações de funcionários ====================
+// ==================== SSE: notificações de funcionários e ferramentas ====================
 const employeesEvents = new EventEmitter();
+const toolsEvents = new EventEmitter();
 
+// SSE funcionários
 app.get('/api/employees/events', (req, res) => {
   res.set({
     'Content-Type': 'text/event-stream',
@@ -34,9 +44,27 @@ app.get('/api/employees/events', (req, res) => {
 
   employeesEvents.on('update', sendEvent);
 
-  // Remove listener quando o cliente fecha a conexão
   req.on('close', () => {
     employeesEvents.off('update', sendEvent);
+  });
+});
+
+// SSE ferramentas
+app.get('/api/ferramentas/events', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const sendEvent = () => {
+    res.write(`data: ${JSON.stringify({ type: 'TOOLS_UPDATED' })}\n\n`);
+  };
+
+  toolsEvents.on('update', sendEvent);
+
+  req.on('close', () => {
+    toolsEvents.off('update', sendEvent);
   });
 });
 
@@ -97,6 +125,10 @@ app.post("/upload-tools", async (req, res) => {
 
     await conn.commit();
     console.log(`✅ Ferramentas importadas (batch): ${data.length} linhas`);
+
+    // 🚀 Notifica SSE de ferramentas
+    toolsEvents.emit('update');
+
     res.send({ message: `Batch importado com sucesso (${data.length} linhas)` });
 
   } catch (err) {
@@ -154,7 +186,7 @@ app.post("/upload-employees", async (req, res) => {
 
     console.log(`✅ Funcionários importados: ${data.length} linhas`);
 
-    // 🚀 Notifica todos os clientes SSE que houve atualização
+    // 🚀 Notifica SSE de funcionários
     employeesEvents.emit('update');
 
     res.send({ message: `Funcionários importados com sucesso! (${data.length} linhas)` });
