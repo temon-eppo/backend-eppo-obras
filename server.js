@@ -43,7 +43,7 @@ app.get('/api/ferramentas/:searchTerm', async (req, res) => {
   }
 });
 
-// POST: Upload ferramentas (apaga antigas apenas no primeiro batch)
+// POST: Upload ferramentas (apaga tudo antes e insere em chunks de 1000)
 app.post("/upload-tools", async (req, res) => {
   const data = req.body;
   if (!Array.isArray(data) || data.length === 0) {
@@ -65,21 +65,23 @@ app.post("/upload-tools", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Só deleta se for o primeiro batch
-    const [{ count }] = await conn.query("SELECT COUNT(*) AS count FROM EPPOFerramentas");
-    if (count > 0 && req.headers["x-first-batch"] === "true") {
-      await conn.query("DELETE FROM EPPOFerramentas");
-    }
+    // Apaga tudo antes de começar
+    await conn.query("DELETE FROM EPPOFerramentas");
 
-    await conn.query(
-      "INSERT INTO EPPOFerramentas (PATRIMONIO, NUMSER, DESCRICAO, FABRICANTE, T035GCODI, STATUS, VLRCOMPRA, COD_FERRA_COB) VALUES ?",
-      [values]
-    );
+    // Insere em chunks de 1000 linhas
+    const chunkSize = 1000;
+    for (let i = 0; i < values.length; i += chunkSize) {
+      const chunk = values.slice(i, i + chunkSize);
+      await conn.query(
+        "INSERT INTO EPPOFerramentas (PATRIMONIO, NUMSER, DESCRICAO, FABRICANTE, T035GCODI, STATUS, VLRCOMPRA, COD_FERRA_COB) VALUES ?",
+        [chunk]
+      );
+    }
 
     await conn.commit();
 
-    console.log(`✅ Ferramentas importadas (batch): ${data.length} linhas`);
-    res.send({ message: `Batch importado com sucesso (${data.length} linhas)` });
+    console.log(`✅ Ferramentas importadas: ${data.length} linhas`);
+    res.send({ message: `Upload concluído com sucesso! (${data.length} linhas)` });
 
   } catch (err) {
     await conn.rollback();
@@ -159,3 +161,4 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
