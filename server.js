@@ -1,22 +1,44 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const {
-  pool,
-  getAllTools,
-  getToolBySearch,
-  getUniqueDescriptions,
-  getAllEmployees,
-  getEmployeeByName
-} = require('./db.js');
+const { pool, getAllTools, getToolBySearch, getUniqueDescriptions, getAllEmployees, getEmployeesByObra, getEmployeeByName } = require('./db.js');
+const EventEmitter = require('events');
 
 const app = express();
 const port = process.env.PORT || 4000;
 
 // Configura CORS e aumenta limite de JSON
-app.use(cors({ origin: ["http://localhost:5173", "https://eppo-obras.vercel.app", "https://eppo-obras-aef61.web.app"] }));
+app.use(cors({
+  origin: [
+    "http://localhost:5173",
+    "https://eppo-obras.vercel.app",
+    "https://eppo-obras-aef61.web.app"
+  ]
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// ==================== SSE: notificações de funcionários ====================
+const employeesEvents = new EventEmitter();
+
+app.get('/api/employees/events', (req, res) => {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const sendEvent = () => {
+    res.write(`data: ${JSON.stringify({ type: 'EMPLOYEES_UPDATED' })}\n\n`);
+  };
+
+  employeesEvents.on('update', sendEvent);
+
+  // Remove listener quando o cliente fecha a conexão
+  req.on('close', () => {
+    employeesEvents.off('update', sendEvent);
+  });
+});
 
 // ==================== ROTAS FERRAMENTAS ====================
 
@@ -46,9 +68,7 @@ app.get('/api/ferramentas/:searchTerm', async (req, res) => {
 // POST: Upload ferramentas (apaga antigas apenas no primeiro batch)
 app.post("/upload-tools", async (req, res) => {
   const data = req.body;
-  if (!Array.isArray(data) || data.length === 0) {
-    return res.status(400).send("Nenhum dado enviado");
-  }
+  if (!Array.isArray(data) || data.length === 0) return res.status(400).send("Nenhum dado enviado");
 
   const values = data.map(row => [
     row.PATRIMONIO || null,
@@ -58,14 +78,13 @@ app.post("/upload-tools", async (req, res) => {
     row.T035GCODI || null,
     row.STATUS || null,
     row.VLRCOMPRA || null,
-    row.COD_FERRA_COB || null,
+    row.COD_FERRA_COB || null
   ]);
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    // Só deleta se for o primeiro batch
     const [{ count }] = await conn.query("SELECT COUNT(*) AS count FROM EPPOFerramentas");
     if (count > 0 && req.headers["x-first-batch"] === "true") {
       await conn.query("DELETE FROM EPPOFerramentas");
@@ -77,7 +96,6 @@ app.post("/upload-tools", async (req, res) => {
     );
 
     await conn.commit();
-
     console.log(`✅ Ferramentas importadas (batch): ${data.length} linhas`);
     res.send({ message: `Batch importado com sucesso (${data.length} linhas)` });
 
@@ -92,18 +110,7 @@ app.post("/upload-tools", async (req, res) => {
 
 // ==================== ROTAS FUNCIONÁRIOS ====================
 
-// GET: todos os funcionários
-app.get('/api/employees', async (req, res) => {
-  try {
-    const employees = await getAllEmployees();
-    res.json(employees);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Erro ao buscar funcionários');
-  }
-});
-
-// GET: funcionário por obra
+// GET: todos os funcionários ou por obra
 app.get('/api/employees', async (req, res) => {
   try {
     const { obra } = req.query;
@@ -147,6 +154,9 @@ app.post("/upload-employees", async (req, res) => {
 
     console.log(`✅ Funcionários importados: ${data.length} linhas`);
 
+    // 🚀 Notifica todos os clientes SSE que houve atualização
+    employeesEvents.emit('update');
+
     res.send({ message: `Funcionários importados com sucesso! (${data.length} linhas)` });
   } catch (err) {
     await conn.rollback();
@@ -159,6 +169,3 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
-
-
-
