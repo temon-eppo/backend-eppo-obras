@@ -103,15 +103,16 @@ app.get('/api/employees', async (req, res) => {
   }
 });
 
-// GET: funcionário por nome
-app.get('/api/employees/name/:name', async (req, res) => {
+// GET: funcionário por obra (GRUPODEF)
+app.get('/api/employees/obra/:obra', async (req, res) => {
   try {
-    const employees = await getEmployeeByName(req.params.name);
-    if (!employees || employees.length === 0) return res.status(404).send('Funcionário não encontrado');
+    const obra = req.params.obra;
+    const employees = await getEmployeeByObra(obra); // função que você precisa criar no db.js
+    if (!employees || employees.length === 0) return res.status(404).send('Nenhum funcionário encontrado para esta obra');
     res.json(employees);
   } catch (err) {
     console.error(err);
-    res.status(500).send('Erro ao buscar funcionário');
+    res.status(500).send('Erro ao buscar funcionários por obra');
   }
 });
 
@@ -152,3 +153,4 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
