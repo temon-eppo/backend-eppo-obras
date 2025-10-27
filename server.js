@@ -107,8 +107,9 @@ app.get('/api/employees', async (req, res) => {
 app.get('/api/employees/obra/:obra', async (req, res) => {
   try {
     const obra = req.params.obra;
-    const employees = await getEmployeeByObra(obra); // função que você precisa criar no db.js
-    if (!employees || employees.length === 0) return res.status(404).send('Nenhum funcionário encontrado para esta obra');
+    const employees = await getEmployeesByObra(obra); // usa a função já existente
+    if (!employees || employees.length === 0) 
+      return res.status(404).send('Nenhum funcionário encontrado para esta obra');
     res.json(employees);
   } catch (err) {
     console.error(err);
@@ -153,4 +154,5 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
 
