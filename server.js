@@ -52,9 +52,10 @@ app.get('/api/ferramentas/:searchTerm', async (req, res) => {
   }
 });
 
-// POST: Upload ferramentas (apaga tudo antes e insere em chunks)
 app.post("/upload-tools", async (req, res) => {
   const data = req.body;
+  const batchNumber = parseInt(req.headers["x-batch"] || "1", 10);
+
   if (!Array.isArray(data) || data.length === 0)
     return res.status(400).send("Nenhum dado enviado");
 
@@ -66,34 +67,36 @@ app.post("/upload-tools", async (req, res) => {
     row.T035GCODI || null,
     row.STATUS || null,
     row.VLRCOMPRA || null,
-    row.COD_FERRA_COB || null,
+    row.COD_FERRA_COB || null
   ]);
 
   const conn = await pool.getConnection();
+
   try {
     await conn.beginTransaction();
-    await conn.query("DELETE FROM EPPOFerramentas");
 
-    const chunkSize = 1000;
-    for (let i = 0; i < values.length; i += chunkSize) {
-      const chunk = values.slice(i, i + chunkSize);
-      await conn.query(
-        "INSERT INTO EPPOFerramentas (PATRIMONIO, NUMSER, DESCRICAO, FABRICANTE, T035GCODI, STATUS, VLRCOMPRA, COD_FERRA_COB) VALUES ?",
-        [chunk]
-      );
+    if (batchNumber === 1) {
+      // apaga tudo apenas no primeiro batch
+      await conn.query("DELETE FROM EPPOFerramentas");
     }
 
+    await conn.query(
+      "INSERT INTO EPPOFerramentas (PATRIMONIO, NUMSER, DESCRICAO, FABRICANTE, T035GCODI, STATUS, VLRCOMPRA, COD_FERRA_COB) VALUES ?",
+      [values]
+    );
+
     await conn.commit();
-    res.send({ message: `Upload concluído com sucesso! (${data.length} linhas)` });
+    res.send({ message: `Batch ${batchNumber} inserido com sucesso!` });
 
   } catch (err) {
     await conn.rollback();
     console.error(err);
-    res.status(500).send("Erro ao processar ferramentas");
+    res.status(500).send(`Erro no batch ${batchNumber}`);
   } finally {
     conn.release();
   }
 });
+
 
 // ==================== ROTAS FUNCIONÁRIOS ====================
 
@@ -148,3 +151,4 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
