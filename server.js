@@ -31,15 +31,20 @@ app.get('/api/ferramentas', async (req, res) => {
   }
 });
 
-// GET: ferramenta por Patrimônio ou NUMSER
-app.get('/api/ferramentas/:searchTerm', async (req, res) => {
+// GET: funcionário por obra (GRUPODEF)
+app.get('/api/employees/obra/:obra', async (req, res) => {
   try {
-    const tool = await getToolBySearch(req.params.searchTerm);
-    if (!tool) return res.status(404).send('Ferramenta não encontrada');
-    res.json(tool);
+    const obraParam = String(req.params.obra);
+    const employees = await getEmployeesByObra(obraParam);
+
+    if (!employees) return res.json([]);
+    if (employees.length === 0) 
+      return res.status(404).send('Nenhum funcionário encontrado para esta obra');
+
+    res.json(employees);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Erro ao buscar ferramenta');
+    console.error("Erro ao buscar funcionários por obra:", err);
+    res.status(500).send('Erro ao buscar funcionários por obra');
   }
 });
 
@@ -154,5 +159,6 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
 
 
