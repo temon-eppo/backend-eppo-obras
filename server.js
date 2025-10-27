@@ -20,8 +20,7 @@ app.use(cors({
     "https://eppo-obras.vercel.app",
     "https://eppo-obras-aef61.web.app"
   ],
-  methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type"],
+  allowedHeaders: "*"
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -151,4 +150,5 @@ app.post("/upload-employees", async (req, res) => {
 
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
+
 
