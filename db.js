@@ -71,8 +71,8 @@ module.exports = {
   pool,
   getAllTools,
   getToolBySearch,
-  getUniqueDescriptions,
   getAllEmployees,
   getEmployeesByObra
 };
+
 
