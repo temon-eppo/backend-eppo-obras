@@ -14,13 +14,7 @@ const app = express();
 const port = process.env.PORT || 4000;
 
 // Configura CORS e aumenta limite de JSON
-app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://eppo-obras.vercel.app",
-    "https://eppo-obras-aef61.web.app"
-  ]
-}));
+app.use(cors({ origin: [ "http://localhost:5173", "https://eppo-obras.vercel.app", "https://eppo-obras-aef61.web.app" ] }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -49,7 +43,7 @@ app.get('/api/ferramentas/:searchTerm', async (req, res) => {
   }
 });
 
-// POST: Upload ferramentas (sempre deleta antes)
+// POST: Upload ferramentas (apaga antigas apenas no primeiro batch)
 app.post("/upload-tools", async (req, res) => {
   const data = req.body;
   if (!Array.isArray(data) || data.length === 0) {
@@ -71,18 +65,21 @@ app.post("/upload-tools", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Deleta todos os registros antes de inserir
-    await conn.query("DELETE FROM EPPOFerramentas");
+    // Só deleta se for o primeiro batch
+    const [{ count }] = await conn.query("SELECT COUNT(*) AS count FROM EPPOFerramentas");
+    if (count > 0 && req.headers["x-first-batch"] === "true") {
+      await conn.query("DELETE FROM EPPOFerramentas");
+    }
 
-    // Insere todos os dados recebidos
     await conn.query(
       "INSERT INTO EPPOFerramentas (PATRIMONIO, NUMSER, DESCRICAO, FABRICANTE, T035GCODI, STATUS, VLRCOMPRA, COD_FERRA_COB) VALUES ?",
       [values]
     );
 
     await conn.commit();
-    console.log(`✅ Ferramentas importadas: ${data.length} linhas`);
-    res.send({ message: `Upload concluído com sucesso! (${data.length} linhas)` });
+
+    console.log(`✅ Ferramentas importadas (batch): ${data.length} linhas`);
+    res.send({ message: `Batch importado com sucesso (${data.length} linhas)` });
 
   } catch (err) {
     await conn.rollback();
@@ -106,23 +103,19 @@ app.get('/api/employees', async (req, res) => {
   }
 });
 
-// GET: funcionário por obra
-app.get('/api/employees', async (req, res) => {
+// GET: funcionário por nome
+app.get('/api/employees/name/:name', async (req, res) => {
   try {
-    const { obra } = req.query;
-    if (obra) {
-      const employees = await getEmployeesByObra(obra);
-      return res.json(employees);
-    }
-    const employees = await getAllEmployees();
+    const employees = await getEmployeeByName(req.params.name);
+    if (!employees || employees.length === 0) return res.status(404).send('Funcionário não encontrado');
     res.json(employees);
   } catch (err) {
     console.error(err);
-    res.status(500).send('Erro ao buscar funcionários');
+    res.status(500).send('Erro ao buscar funcionário');
   }
 });
 
-// POST: Upload funcionários (sempre deleta antes)
+// POST: Upload funcionários (apaga antigos antes)
 app.post("/upload-employees", async (req, res) => {
   const data = req.body;
   if (!Array.isArray(data) || data.length === 0) return res.status(400).send("Nenhum dado enviado");
@@ -138,19 +131,16 @@ app.post("/upload-employees", async (req, res) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-
-    // Deleta todos os registros antes de inserir
-    await conn.query("DELETE FROM EPPOFuncionarios");
-
+    await conn.query("DELETE FROM EPPOFuncionarios"); // deleta antigos
     await conn.query(
       "INSERT INTO EPPOFuncionarios (GRUPODEF, FUNCAO, MATRICULA, NOME, TIPO) VALUES ?",
       [values]
     );
-
     await conn.commit();
-    console.log(`✅ Funcionários importados: ${data.length} linhas`);
-    res.send({ message: `Upload concluído com sucesso! (${data.length} linhas)` });
 
+    console.log(`✅ Funcionários importados: ${data.length} linhas`);
+
+    res.send({ message: `Funcionários importados com sucesso! (${data.length} linhas)` });
   } catch (err) {
     await conn.rollback();
     console.error(err);
