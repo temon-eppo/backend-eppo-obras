@@ -43,7 +43,7 @@ app.get('/api/ferramentas/:searchTerm', async (req, res) => {
   }
 });
 
-// POST: Upload ferramentas (apaga antigas apenas no primeiro batch)
+// POST: Upload ferramentas (apaga tabela antes do primeiro chunk)
 app.post("/upload-tools", async (req, res) => {
   const data = req.body;
   if (!Array.isArray(data) || data.length === 0) {
@@ -65,10 +65,10 @@ app.post("/upload-tools", async (req, res) => {
   try {
     await conn.beginTransaction();
 
-    // Só deleta se for o primeiro batch
-    const [{ count }] = await conn.query("SELECT COUNT(*) AS count FROM EPPOFerramentas");
-    if (count > 0 && req.headers["x-first-batch"] === "true") {
+    // DELETA SEM CONDIÇÃO: apenas se for o primeiro batch
+    if (req.headers["x-first-batch"] === "true") {
       await conn.query("DELETE FROM EPPOFerramentas");
+      console.log("Tabela EPPOFerramentas limpa antes do upload");
     }
 
     await conn.query(
