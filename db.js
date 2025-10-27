@@ -50,17 +50,6 @@ async function getToolBySearch(searchTerm) {
   return { ...rows[0], NUMSER: rows[0].NUMSER ? String(rows[0].NUMSER) : null };
 }
 
-// Retorna descrições únicas (sem código)
-async function getUniqueDescriptions() {
-  const [rows] = await pool.execute(`
-    SELECT DISTINCT DESCRICAO
-    FROM EPPOFerramentas
-    WHERE DESCRICAO IS NOT NULL
-    ORDER BY DESCRICAO ASC
-  `);
-  return rows.map(row => ({ DESCRICAO: row.DESCRICAO }));
-}
-
 // ==================== FUNCIONÁRIOS ====================
 
 // Retorna todos os funcionários
@@ -86,3 +75,4 @@ module.exports = {
   getAllEmployees,
   getEmployeesByObra
 };
+
