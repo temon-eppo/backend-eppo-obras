@@ -141,8 +141,14 @@ app.post("/upload-employees", async (req, res) => {
 });
 
 // ==================== ROTAS MATERIAIS ====================
+function chunkArray(array, size = 1000) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
 
-// POST: Upload materiais (apaga tabela antes do primeiro chunk)
 app.post("/upload-materiais", async (req, res) => {
   const data = req.body;
 
@@ -150,30 +156,36 @@ app.post("/upload-materiais", async (req, res) => {
     return res.status(400).send("Nenhum dado enviado");
   }
 
-  const values = data.map(row => [
-    row.CODIGO || null,
-    row.DESCRICAO || null
-  ]);
-
   const conn = await pool.getConnection();
+
   try {
     await conn.beginTransaction();
 
-    // Limpa tabela apenas no primeiro batch
     if (req.headers["x-first-batch"] === "true") {
       await conn.query("DELETE FROM EPPOMateriais");
-      console.log("🧹 Tabela EPPOMateriais limpa antes do upload");
+      console.log("🧹 Tabela EPPOMateriais limpa");
     }
 
-    await conn.query(
-      "INSERT INTO EPPOMateriais (CODIGO, DESCRICAO) VALUES ?",
-      [values]
-    );
+    const chunks = chunkArray(data, 1000);
+
+    for (const chunk of chunks) {
+      const values = chunk.map(row => [
+        row.CODIGO || null,
+        row.DESCRICAO || null
+      ]);
+
+      await conn.query(
+        `INSERT INTO EPPOMateriais (CODIGO, DESCRICAO)
+        VALUES ?
+        ON DUPLICATE KEY UPDATE DESCRICAO = VALUES(DESCRICAO)`,
+        [values]
+      );
+    }
 
     await conn.commit();
 
-    console.log(`✅ Materiais importados (batch): ${data.length} linhas`);
-    res.send({ message: `Batch importado com sucesso (${data.length} linhas)` });
+    console.log(`✅ Materiais importados: ${data.length} linhas`);
+    res.send({ message: `Importação concluída (${data.length} linhas)` });
 
   } catch (err) {
     await conn.rollback();
@@ -183,7 +195,6 @@ app.post("/upload-materiais", async (req, res) => {
     conn.release();
   }
 });
-
 
 // GET: todos os materiais
 app.get("/api/materiais", async (req, res) => {
