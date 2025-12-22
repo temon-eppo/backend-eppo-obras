@@ -5,9 +5,9 @@ const {
   pool,
   getAllTools,
   getToolBySearch,
-  getUniqueDescriptions,
   getAllEmployees,
-  getEmployeeByName
+  getEmployeesByObra,
+  getAllMateriais
 } = require('./db.js');
 
 const app = express();
@@ -28,23 +28,6 @@ app.get('/api/ferramentas', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send('Erro ao buscar ferramentas');
-  }
-});
-
-// GET: funcionário por obra (GRUPODEF)
-app.get('/api/employees/obra/:obra', async (req, res) => {
-  try {
-    const obraParam = String(req.params.obra);
-    const employees = await getEmployeesByObra(obraParam);
-
-    if (!employees) return res.json([]);
-    if (employees.length === 0) 
-      return res.status(404).send('Nenhum funcionário encontrado para esta obra');
-
-    res.json(employees);
-  } catch (err) {
-    console.error("Erro ao buscar funcionários por obra:", err);
-    res.status(500).send('Erro ao buscar funcionários por obra');
   }
 });
 
@@ -157,8 +140,61 @@ app.post("/upload-employees", async (req, res) => {
   }
 });
 
+// ==================== ROTAS MATERIAIS ====================
+
+// POST: Upload materiais (apaga tabela antes do primeiro chunk)
+app.post("/upload-materiais", async (req, res) => {
+  const data = req.body;
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return res.status(400).send("Nenhum dado enviado");
+  }
+
+  const values = data.map(row => [
+    row.CODIGO || null,
+    row.DESCRICAO || null
+  ]);
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Limpa tabela apenas no primeiro batch
+    if (req.headers["x-first-batch"] === "true") {
+      await conn.query("DELETE FROM EPPOMateriais");
+      console.log("🧹 Tabela EPPOMateriais limpa antes do upload");
+    }
+
+    await conn.query(
+      "INSERT INTO EPPOMateriais (CODIGO, DESCRICAO) VALUES ?",
+      [values]
+    );
+
+    await conn.commit();
+
+    console.log(`✅ Materiais importados (batch): ${data.length} linhas`);
+    res.send({ message: `Batch importado com sucesso (${data.length} linhas)` });
+
+  } catch (err) {
+    await conn.rollback();
+    console.error("Erro ao importar materiais:", err);
+    res.status(500).send("Erro ao processar materiais");
+  } finally {
+    conn.release();
+  }
+});
+
+
+// GET: todos os materiais
+app.get("/api/materiais", async (req, res) => {
+  try {
+    const materiais = await getAllMateriais();
+    res.json(materiais);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Erro ao buscar materiais");
+  }
+});
+
 // ==================== SERVIDOR ====================
 app.listen(port, () => console.log(`Servidor rodando na porta ${port}`));
-
-
-
