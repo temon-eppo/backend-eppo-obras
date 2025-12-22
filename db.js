@@ -83,5 +83,6 @@ module.exports = {
   getAllTools,
   getToolBySearch,
   getAllEmployees,
-  getEmployeesByObra
+  getEmployeesByObra,
+  getAllMateriais
 };
