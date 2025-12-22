@@ -67,6 +67,17 @@ async function getEmployeesByObra(obra) {
   return rows;
 }
 
+// ==================== MATERIAIS ====================
+
+// Retorna todos os materiais
+async function getAllMateriais() {
+  const [rows] = await pool.execute(
+    'SELECT CODIGO, DESCRICAO FROM EPPOMateriais ORDER BY DESCRICAO'
+  );
+  return rows;
+}
+
+
 module.exports = {
   pool,
   getAllTools,
@@ -74,5 +85,3 @@ module.exports = {
   getAllEmployees,
   getEmployeesByObra
 };
-
-
